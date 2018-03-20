@@ -1,0 +1,8 @@
+This folder contains some matlab scripts (.m) 
+for the import of data and data preparation for further use (dataimport.m).
+It was originally used to prepare the data for geostrophic calculation.
+I tried to set this as automatic as possible, 
+but scan the script before running it, depending on the original file,
+from which you want to import your data, you might want to edit some settings, 
+e.g. number of columns and column assignment to variables.
+The folder contains some example data and a licence as well. 
