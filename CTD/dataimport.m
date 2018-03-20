@@ -1,0 +1,311 @@
+%% CTD cruise data from MEDATLAS
+%
+% ----------------------------DESCRIPTION----------------------------
+% DESCRIPTION: -Import data from .txt files generated with             
+%               CTD.exe or from MEDATLAS
+%              -Selects transect of interest (section) included 
+%               in a set polygon (defined by xv and yv ll.48-49)
+%              -order data northward or eastward
+%              -prepare data for geostrophic calculation 
+%                                                                     
+% INPUT: CTD txt data (CTD=Conductivity Temperature Depth)            
+% OUTPUT: vertically gridded 
+%         - pressure (dbar)
+%         - temperature (C) 
+%         - salinity (PSU)
+%         - longitude (deg)
+%         - latitude (deg) 
+%         - Bottom Depth (m) (this is the last CTD measurement depth)
+%
+% ------------------------------LICENSE------------------------------
+% AUTHOR: Simona Aracri (aracrisimona@gmail.com)                     
+% DATA: 15th March 2018                                              
+% LAST MODIFIED: 15th March 2018    
+%
+% This file is licensed under the Creative Commons Attribution-Share 
+% Alike 4.0 International license. 	
+% (https://creativecommons.org/licenses/by-sa/4.0/)
+% you can find the full text in license.m
+% =========================================================================
+
+
+% This example imports data from the EAA2 oceanographic cruise,
+% which took place in December 1979
+%
+% In the .mat document the chosen columns of the variables are going to be 
+% 1 longitude
+% 2 latitude
+% 3 bottom depth 
+% 4 pressure
+% 6 temperature
+% 8 salinity
+% check at ll.143
+% 2nd station from the southest point NaN
+clear; close; clc
+%% edit before running
+% coordinates of a box that include the stations 
+% that we are interested in
+xv=[8.68; 8.86; 7.97; 7.83];     % lon
+yv=[42.84; 42.94; 43.73; 43.65]; % lat
+expde=3000; % expected maximum depth
+% ncol=10;
+% index+1=4;
+
+%% Import dataset in txt format
+% reads from file
+filename = 'example_data.txt';
+A = importdata(filename);
+data= A.data;
+metadata= A.textdata; % in this case it will be important to notice that 
+                     % column header is the 10th line of the metadata variable 
+clearvars -except data metadata xv yv expde
+
+% Some cruises from medatlas present NaNs in the first 3 columns 
+% (lat, lon, bottom depth), let's fill them
+for h=2:size(data,1)
+    for kk=1:3
+    if isnan (data(h,kk))
+        data(h,kk)= data(h-1,kk);
+    end
+    end
+end
+clear h kk
+
+%% isolate the stations that are in our area of interest 
+
+% box_stations
+xv=[xv; xv(1)]; yv=[yv; yv(1)];
+lon=data(:,1);  lat=data(:,2);
+in = inpolygon(lon,lat,xv,yv);
+
+% plot a map of the considered stations
+% to check if we picked up the right ones
+plot(xv,yv,lon(in),lat(in),'.r')
+close
+
+% so the section that we are going to consider in the entire cruise from
+% now on it is going to be:
+section(:,:)=data(in,:); % "section" is the selected subset of "data"
+
+%% order the stations progressing northwards
+% extract the longitude column and sort it
+
+cruise=section;
+cruise(:,:)=NaN;
+cruise(:,2)=sort(section(:,2)); % "cruise" is the ordered "section"
+
+% Below 'diff' is the difference between two cells of the first column
+% when it is different from zero means that the longitude of the station
+% is changed, so is the station.
+
+for kk=1:length(cruise)-1         
+idiff(kk,1)=cruise(kk+1,2)-cruise(kk,2); 
+end   
+clear kk xv yv in
+
+% finds the indices of the cells in which starts another station
+
+index=find(idiff~=0); % index indicates the cell index at which the 
+                      % new station starts in the cruise matrix   
+                     
+% finds the indices of the position of the wanted logitudes
+% in the matrix section
+h=find(section(:,2)==(cruise(index(1),2)));
+
+% fills the ordinates matrix with the values from the chosen transect  
+% in the wanted order.
+%initialize
+cruise(1:length(h),3:size(cruise,2))=section(h(1:end),3:size(cruise,2));
+cruise(1:length(h),1)=section(h(1:end),1);
+
+for q=2:length(index)
+%     jjj(q,:)=find(nc_section(:,2)==(cruise(index(q),2)));
+%     clear jjj
+    kk=find(section(:,2)==(cruise(index(q),2)));
+    cruise(index(q-1)+1:index(q),3:size(data,2))=section(kk(1:end),3:size(data,2));
+    cruise(index(q-1)+1:index(q),1)=section(kk(1:end),1);
+end
+
+% The last station is not seen from the for cycle, because to increase
+% it refers to the vector index which stops at the last diff~=0, that
+% is the penultimate station, so write cruise_nc_sorted(index(end)+1)
+
+cruise((index(end)+1):end,3:size(data,2))=section((index(end)+1):end,3:size(data,2));
+cruise((index(end)+1):end,1)=section((index(end)+1):end,1);    
+   
+%% create different matrixes for salinity temperature and pressure
+% Using sw_gpan.m from seawater_ver3_3 library to calculate 
+% the geopotential anomaly we need 3 different matrixes (S,T,P)
+
+index(1,1);              
+
+out(1).lon=cruise(1:index(1,1),1); % out is the stucture formed by the matrixes containing a certain variable 
+out(1).lat=cruise(1:index(1,1),2); 
+out(1).press=cruise(1:index(1,1),4);
+out(1).temp=cruise(1:index(1,1),6);  
+out(1).salt=cruise(1:index(1,1),8); 
+out(1).bdepth=cruise(1:index(1,1),3);
+
+
+for i=2:length(index)   
+out(i).lon=cruise(index(i-1,1)+1:index(i,1),1);
+out(i).lat=cruise(index(i-1,1)+1:index(i,1),2);
+out(i).press=cruise(index(i-1,1)+1:index(i,1),4);
+out(i).temp=cruise(index(i-1,1)+1:index(i,1),6);  
+out(i).salt=cruise(index(i-1,1)+1:index(i,1),8); 
+out(i).bdepth=cruise(index(i-1,1)+1:index(i,1),3);
+end
+
+out(length(index)+1).lon=cruise(index(end)+1:end,1); 
+out(length(index)+1).lat=cruise(index(end)+1:end,2); 
+out(length(index)+1).press=cruise(index(end)+1:end,4);
+out(length(index)+1).temp=cruise(index(end)+1:end,6);  
+out(length(index)+1).salt=cruise(index(end)+1:end,8); 
+out(length(index)+1).bdepth=cruise(index(end)+1:end,3);
+
+
+%% Create p,s,t grid matrixes
+% which in my mind means that creates a p
+% matrix which start from 1 db and then organizes the other 2 (t,s)
+% consequently, putting the measurements done at a certain pressure in the
+% right cell. For istance at cell 3 there will be the value 3 db in the 
+% p matrix and in the others matrixes the value of salinity and temperature
+% taken at 3 db.
+% Here first we create 3 NaN matrixes with the max dimension that we know 
+% is reached by the considered transect, then we fill them with the 
+% values from the matix 'out', which comes from staz_mod_geo.m or variables.
+ga_salt(1:expde,1:length(index)+1)=NaN;
+ga_press(1:expde,1:length(index)+1)=NaN;
+ga_temp(1:expde,1:length(index)+1)=NaN;
+
+for q=1:length(index)+1 % ga_* is the matrix contining a certain variable data
+    
+   
+ga_salt(1:length(out(q).salt),q)=out(q).salt;
+
+
+ga_press(1:length(out(q).press),q)=out(q).press;
+
+
+ga_temp(1:length(out(q).temp),q)=out(q).temp;
+
+end
+clear i h idiff q
+% The pressure at the surface is set at zero, this gives problems 
+% during the gridding so we set the surface pressure at 1 db.
+
+% Finds the latitudes of the stations and the longitudes associated 
+% with them
+
+lat=unique(cruise(:,2)); 
+clear h lon
+for h=1:length(lat)
+I=find(cruise(:,2)==lat(h));
+lon(h)=cruise(I(1),1);
+end
+% Remember here data refers just to the box considered, e.g. Corsica
+
+clear h lon
+for h=1:length(index)+1
+I=find(cruise(:,2)==lat(h));
+lon(h)=cruise(I(1),1);
+end
+
+% For the magnitudes of interest: p, t, s, we create new matrixes
+% which will be the argument of the function sw_gpan (Geopotential
+% anomaly). These matrixes need to be of the same size, but this is
+% something that we already settled before.
+
+% If we have to grid the data
+
+p(1:expde,1:size(ga_press,2))=NaN; % p,s,t are matrixes where pressure 
+t(1:expde,1:size(ga_temp,2))=NaN;  % corresponds to the column grid position
+s(1:expde,1:size(ga_salt,2))=NaN;  % and consequentely are s and t 
+
+% Here we grid the data, I mean the pressure at 1 db will be in cell 1 and
+% the temperature measured at 1 db will be in cell 1, same for
+% salinity.
+ga_press(1,:)=1; % because the zero value does not work 
+
+for k=1:size(ga_press,2)
+    for w=1:size(ga_press,1)
+        if isnan (ga_press(w,k))
+        else
+        p(ga_press(w,k),k)=ga_press(w,k);    
+        t(ga_press(w,k),k)=ga_temp(w,k);
+        s(ga_press(w,k),k)=ga_salt(w,k);
+        end         
+    end
+end
+
+
+  for kk=1:size(ga_press,2)
+         index= find(isnan(p(:,kk)));
+         p(index,kk)=index;
+  end
+
+if  1 
+% We need to eliminate the NaN at the beginning of each column
+% in all the three matrixes.
+% So here is a loop through all columns and all rows from bottom to top.
+% If current element is not NaN and the element above is NaN,
+% copy the value of current element to element above.
+% If there are consecutive NaNs in the bottom of any column, they are not changed.
+
+% "salinity", "temperature", "pressure" have no NaNs at the column top
+salinity=s;
+for colIndex = 1:size(salinity,2)
+    for rowIndex = size(salinity,1):-1:2
+        CurrentValue = salinity(rowIndex,colIndex);
+        if ~isnan(CurrentValue) && isnan(salinity(rowIndex-1,colIndex))
+            salinity(rowIndex-1, colIndex) = CurrentValue;
+        end
+    end
+end
+
+
+pressure=p;
+for colIndex = 1:size(pressure,2)
+    for rowIndex = size(pressure,1):-1:2
+        CurrentValue = pressure(rowIndex, colIndex);
+        if ~isnan(CurrentValue) && isnan(pressure(rowIndex-1, colIndex))
+            pressure(rowIndex-1, colIndex) = CurrentValue;
+        end
+    end
+end
+
+temperature=t;
+for colIndex = 1:size(temperature,2)
+    for rowIndex = size(temperature,1):-1:2
+        CurrentValue = temperature(rowIndex, colIndex);
+        if ~isnan(CurrentValue) && isnan(temperature(rowIndex-1, colIndex))
+            temperature(rowIndex-1, colIndex) = CurrentValue;
+        end
+    end
+end
+
+end %(if to fill the NaNs at the begining of each column)
+  
+%% plot 
+ah=figure(1); 
+set(ah,'PaperUnits','inches',...
+'PaperOrientation','portrait',...
+'PaperSize',[8 8],...
+'Paperposition',[0.5 0.5 9.5 3],...
+'PaperType','<custom>',...
+'Position',[50 50 950 300],'visible','on');
+
+set(gcf,'color','white'); % sfondo
+clf
+
+% Note: the pcolor function needs to use matrixes of same size
+
+pcolor(lon,pressure,salinity); 
+shading interp; 
+hold on; 
+set(gca,'YDir','reverse');
+title('EAA2 December 1979 salinity (PSU)')
+xlabel('Longitude (deg)'); ylabel('Pressure [dbar]');
+pclegend(salinity,[.97 .3 .02 0.4]);
+%contour((p(10:60,1:12)),gv);
+print('-dpng','-r600','salinity.png')
