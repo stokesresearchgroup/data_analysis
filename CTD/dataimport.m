@@ -309,3 +309,5 @@ xlabel('Longitude (deg)'); ylabel('Pressure [dbar]');
 pclegend(salinity,[.97 .3 .02 0.4]);
 %contour((p(10:60,1:12)),gv);
 print('-dpng','-r600','salinity.png')
+
+save output_data pressure salinity temperature lon lat 
