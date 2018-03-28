@@ -30,7 +30,7 @@
 
 
 % This example imports data from the DYOMEI oceanographic cruise,
-% which took place in July 1981
+% which took place in December 1981
 %
 % In the .mat document the chosen columns of the variables are going to be 
 % 1 longitude
@@ -311,13 +311,12 @@ clf
 
 pcolor(lon,pressure,salinity); 
 shading interp; 
+%contour(salinity);
 hold on; 
-% contour(salinity);
-% hold on; 
 set(gca,'YDir','reverse');
-title('DYOME July 1981 salinity (PSU)')
+title('EAA2 December 1979 salinity (PSU)')
 xlabel('Longitude (deg)'); ylabel('Pressure [dbar]');
 pclegend(salinity,[.97 .3 .02 0.4]);
 print('-dpng','-r600','salinity.png')
 caxis([38.3 38.5])
-save example_data pressure salinity temperature lon lat 
+save output_data pressure salinity temperature lon lat 

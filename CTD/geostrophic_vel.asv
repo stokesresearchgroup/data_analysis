@@ -1,0 +1,107 @@
+%% Geostrophic velocity calculation (baroclinic)
+%
+% ----------------------------DESCRIPTION----------------------------
+% DESCRIPTION: calculates the baroclinic component 
+%              of geostrophic velocities 
+%              The seawater package needs to be saved in the
+%              matlab path for this script to work
+%                                                                     
+% INPUT: salinity pressure temperature (matrixes), lon lat (vectors)           
+% OUTPUT: baroclinic component of geostrophic velocity refered to the
+% surface (gv) and to the bottom (gv_corr)
+% ------------------------------LICENSE------------------------------
+% AUTHOR: Simona Aracri (aracrisimona@gmail.com)                     
+% DATA: 28th March 2018                                              
+% LAST MODIFIED: 28th March 2018    
+%
+% This file is licensed under the Creative Commons Attribution-Share 
+% Alike 4.0 International license. 	
+% (https://creativecommons.org/licenses/by-sa/4.0/)
+% you can find the full text in license.m
+% =========================================================================
+clear; close all; clc
+
+load output_data.mat
+ 
+%% calculate the geostrophic velocity referred to the surface 
+ % geopotential anomaly
+ ga=sw_gpan(salinity,temperature,pressure);       
+ %ga=sw_gpan(ga_salt,ga_temp,ga_press);  
+ % geostrophic velocities
+ gv = sw_gvel(ga,lat',lon);   
+
+% Plot
+ah=figure(3); 
+set(ah,'PaperUnits','inches',...
+'PaperOrientation','portrait',...
+'PaperSize',[8 8],...
+'Paperposition',[0.5 0.5 9.5 3],...
+'PaperType','<custom>',...
+'Position',[50 50 950 300],'visible','on');
+
+set(gcf,'color','white'); % sfondo
+clf
+pcolor(lon(1,1:(end-1)),(pressure(:,1:(end-1))),gv(:,1:(end))); 
+shading interp; 
+hold on; 
+set(gca,'YDir','reverse');
+title('DYOME July 1981 Geostrophic Velocity [m/s]')
+xlabel('Longitude (deg)'); ylabel('Pressure [dbar]');
+pclegend(gv,[.97 .3 .02 0.4]);
+%pclegend('GV');
+%contour((p(10:60,1:12)),gv);
+print('-dpng','-r600','gv_surface.png')
+
+%% Bottom correction
+% correct the calculated velocity with the
+% bottom velocity, assuming the bottom as level of no motion
+
+geostr_vel=gv; 
+ 
+bot_vel = ~isnan(geostr_vel);
+
+ % indices
+Indices = arrayfun(@(x) find(bot_vel(:, x), 1, 'last'), 1:size(geostr_vel, 2));
+
+ % values
+v_bot_vel = arrayfun(@(x,y) geostr_vel(x,y), Indices, 1:size(geostr_vel, 2));
+ 
+% Subtract bottom velocities to the entire water column, for each column
+ 
+gv_corr(size(geostr_vel,1),size(geostr_vel,2))=NaN;
+gv_corr(:,:)=NaN;
+ 
+for cc=1:size(geostr_vel,2)
+      gv_corr(:,cc)=geostr_vel(:,cc)-v_bot_vel(1,cc);
+end
+ 
+ % Plot
+ah=figure(4); 
+set(ah,'PaperUnits','inches',...
+'PaperOrientation','portrait',...
+'PaperSize',[8 8],...
+'Paperposition',[0.5 0.5 9.5 3],...
+'PaperType','<custom>',...
+'Position',[50 50 950 300],'visible','on');
+
+set(gcf,'color','white'); % sfondo
+clf
+pcolor(lat(1:end-1),pressure(:,1:end-1),gv_corr); 
+shading interp; 
+hold on; 
+set(gca,'YDir','reverse');
+title('DYOME July 1981 Geostrophic Velocity [m/s] Bottom Correction')
+xlabel('Latitude (deg)'); ylabel('Pressure [db]');
+pclegend(gv_corr,[.97 .3 .02 0.4]);
+print('-dpng','-r600','gv_bottom.png')
+
+oh=figure;
+plot(gv_corr,-pressure(:,1:(end-1)),'LineWidth',3);
+ylabel('Pressure (dbar)','fontsize',12);
+xlabel('Geostrophic Velocities (m/s) ','fontsize',12); 
+title('Geostrophic Velocities DYOME July 1981 Nice-Calvì Transect','fontsize',12);
+
+print('-dpng','-r600','gv_vertical.png')
+ 
+ 
+save geostrophic_v bot_vel gv gv_corr lon lat    
